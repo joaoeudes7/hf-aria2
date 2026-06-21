@@ -12,9 +12,7 @@ TAG="v$VERSION"
 
 cd "$(dirname "$0")"
 
-sed -i '' "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
-sed -i '' "s|hf-aria2/[0-9.]*|hf-aria2/$VERSION|" src/hf_aria2/downloader.py
-sed -i '' "s|hf_aria2-[0-9.]*-py3-none-any.whl|hf_aria2-$VERSION-py3-none-any.whl|" README.md
+sed -i '' "s/__version__ = .*/__version__ = \"$VERSION\"/" src/hf_aria2/__init__.py
 
 uv build
 
