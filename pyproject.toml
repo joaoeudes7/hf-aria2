@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hf-aria"
+version = "0.1.0"
+description = "Fast HuggingFace downloader using aria2c — cache-compatible with huggingface_hub"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+dependencies = [
+    "huggingface_hub>=0.23.0",
+]
+authors = [
+    { name = "joaoeudes7" },
+]
+
+[project.scripts]
+hf-aria = "hf_aria:main"
+
+[project.optional-dependencies]
+aria2 = ["aria2>=0.0.1b0"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hf_aria"]
