@@ -23,6 +23,8 @@ class DownloadBatch:
     local_dir: Path | None = None
     token: str | None = None
     repo_type: str = "model"
+    total_size: int = 0
+    lfs_hashes: dict[str, str] = field(default_factory=dict)
 
 
 def _get_cache_root() -> Path:
@@ -47,20 +49,6 @@ def _should_include(
     return True
 
 
-def _confirm_download(batch: DownloadBatch, to_download: int, total_size_hint: str):
-    print(f"\nRepository: {batch.repo_id}@{batch.revision}")
-    print(f"  Type:     {batch.repo_type}")
-    print(f"  Files:    {len(batch.files)} total, {to_download} to download")
-    if batch.local_dir:
-        print(f"  Symlinks: {batch.local_dir}")
-    print(f"  Cache:    {batch.snapshot_dir}")
-    if total_size_hint:
-        print(f"  Size:     ~{total_size_hint}")
-    answer = input("\nProceed with download? [Y/n] ").strip().lower()
-    if answer not in ("", "y", "yes"):
-        print("Aborted.")
-        sys.exit(0)
-
 
 def resolve_batch(args) -> DownloadBatch:
     api = HfApi(token=args.token)
@@ -73,10 +61,16 @@ def resolve_batch(args) -> DownloadBatch:
         print(f"error: failed to fetch repo info for {args.repo}: {e}", file=sys.stderr)
         sys.exit(1)
 
-    siblings = [s.rfilename for s in info.siblings]
+    siblings = {s.rfilename: s for s in info.siblings}
 
     included = [f for f in siblings if _should_include(f, args.include, args.exclude)]
     excluded = [f for f in siblings if not _should_include(f, args.include, args.exclude)]
+    total_size = sum(siblings[f].size or 0 for f in included)
+
+    lfs_hashes = {
+        f: siblings[f].lfs.sha256 for f in included
+        if siblings[f].lfs and siblings[f].lfs.sha256
+    }
 
     files = [
         (
@@ -98,6 +92,7 @@ def resolve_batch(args) -> DownloadBatch:
 
     batch = DownloadBatch(
         repo_id=args.repo,
+        total_size=total_size,
         revision=args.revision,
         sha=info.sha,
         files=files,
@@ -108,6 +103,7 @@ def resolve_batch(args) -> DownloadBatch:
         no_exist_dir=repo_dir / ".no_exist" / info.sha,
         local_dir=Path(args.local_dir) if args.local_dir else None,
         token=args.token or os.environ.get("HF_TOKEN"),
+        lfs_hashes=lfs_hashes,
         repo_type=args.repo_type,
     )
 
@@ -129,8 +125,5 @@ def resolve_batch(args) -> DownloadBatch:
             for url, fname in files:
                 print(f"  {fname}")
         sys.exit(0)
-
-    if not args.yes:
-        _confirm_download(batch, len(files), "")
 
     return batch

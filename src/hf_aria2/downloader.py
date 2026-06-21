@@ -8,7 +8,7 @@ import sys
 import time
 from pathlib import Path
 
-from hf_aria.resolver import DownloadBatch
+from hf_aria2.resolver import DownloadBatch
 
 
 def _sha256(path: Path) -> str:
@@ -33,8 +33,11 @@ def _is_cached(snapshot_dir: Path, filename: str) -> bool:
     return False
 
 
-def _commit_file(temp_path: Path, filename: str, batch: DownloadBatch):
-    shasum = _sha256(temp_path)
+def _commit_file(temp_path: Path, filename: str, batch: DownloadBatch, expected_sha: str | None = None):
+    if expected_sha:
+        shasum = expected_sha
+    else:
+        shasum = _sha256(temp_path)
     blob_path = batch.blobs_dir / shasum
 
     if not blob_path.exists():
@@ -90,9 +93,9 @@ def _install_hint():
     if sys.platform == "darwin":
         return "brew install aria2"
     elif sys.platform == "win32":
-        return "pip install hf-aria[aria2]  (or choco install aria2)"
+        return "choco install aria2  (or winget install aria2)"
     else:
-        return "pip install hf-aria[aria2]  (or sudo apt install aria2 / dnf install aria2)"
+        return "sudo apt install aria2  (or sudo dnf install aria2)"
 
 
 
@@ -128,7 +131,10 @@ def run_download(batch: DownloadBatch, args):
     with open(input_file, "w") as f:
         for url, fname in to_download:
             f.write(f"{url}\n  out={fname}\n")
-        f.write(f"  header=User-Agent: hf-aria/0.1.0\n")
+            sha = batch.lfs_hashes.get(fname)
+            if sha:
+                f.write(f"  checksum=sha-256={sha}\n")
+        f.write(f"  header=User-Agent: hf-aria2\n")
         if batch.token:
             f.write(f"  header=Authorization: Bearer {batch.token}\n")
 
@@ -142,25 +148,54 @@ def run_download(batch: DownloadBatch, args):
         "--continue=true",
         "--auto-file-renaming=false",
         "--file-allocation=none",
-        "--summary-interval=5",
+        "--download-result=hide",
+        "--max-tries=10",
+        "--retry-wait=10",
     ]
 
-    print(f"🚀 Downloading {len(to_download)} files with aria2c...")
+    spinners = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    bar_len = 20
     t0 = time.time()
-    result = subprocess.run(cmd)
+    proc = subprocess.Popen(cmd, stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+    frame = 0
+
+    while True:
+        try:
+            proc.wait(timeout=0.5)
+            break
+        except subprocess.TimeoutExpired:
+            downloaded = sum(
+                f.stat().st_size for f in staging.iterdir()
+                if f.is_file() and f.name != "aria2_input.txt"
+            )
+            now = time.time()
+            pct = min(int(downloaded * 100 / batch.total_size), 99) if batch.total_size else 0
+            filled = pct * bar_len // 100
+            bar = "█" * filled + "░" * (bar_len - filled)
+            speed = downloaded / (now - t0) if (now - t0) > 0 else 0
+            elapsed_fmt = f"{int(now - t0)}s"
+            spin = spinners[frame % len(spinners)]
+            frame += 1
+            print(f"\r  {spin} {bar} {pct}%  {_format_bytes(speed)}/s  {elapsed_fmt}", end="", flush=True)
+
+    print()
     elapsed = time.time() - t0
 
-    if result.returncode != 0:
-        print(f"\nerror: aria2c failed (exit {result.returncode})", file=sys.stderr)
+    if proc.returncode != 0:
+        print(f"\nerror: aria2c failed (exit {proc.returncode})", file=sys.stderr)
         print(f"  Staging files kept at: {staging}", file=sys.stderr)
         print("  Re-run to resume downloads", file=sys.stderr)
         sys.exit(1)
 
-    print("📦 Committing files to HF cache...")
-    for _, fname in to_download:
+    print("\r  ═══ Committing files ═══")
+    for i, (_, fname) in enumerate(to_download, 1):
         staged = staging / fname
         if staged.exists():
-            _commit_file(staged, fname, batch)
+            sz = staged.stat().st_size
+            label = "✔" if fname in batch.lfs_hashes else "⌛"
+            print(f"\r  {label} [{i}/{len(to_download)}] {fname} ({_format_bytes(sz)})", end="", flush=True)
+            _commit_file(staged, fname, batch, batch.lfs_hashes.get(fname))
+    print()
 
     _write_refs(batch)
 
@@ -177,9 +212,8 @@ def run_download(batch: DownloadBatch, args):
         for f in batch.blobs_dir.iterdir()
         if f.is_file() and len(f.name) == 64
     )
-    print(f"✅ Done. {len(to_download)} files committed to cache")
-    print(f"   Cache:  {batch.snapshot_dir}")
-    print(f"   Size:   {_format_bytes(total)}")
-    print(f"   Time:   {elapsed:.1f}s")
     speed = total / elapsed if elapsed > 0 else 0
-    print(f"   Speed:  {_format_bytes(speed)}/s")
+    print(f"\n  ✓ Downloaded {len(to_download)} files")
+    print(f"    Cache:  {batch.snapshot_dir}")
+    print(f"    Size:   {_format_bytes(total)}")
+    print(f"    Time:   {elapsed:.1f}s  ({_format_bytes(speed)}/s)")

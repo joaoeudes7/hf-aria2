@@ -6,7 +6,7 @@ from pathlib import Path
 
 def parse_args(argv: list[str] | None = None):
     p = argparse.ArgumentParser(
-        prog="hf-aria",
+        prog="hf-aria2",
         description="Fast HuggingFace downloader using aria2c — cache-compatible with huggingface_hub",
     )
 
@@ -28,27 +28,25 @@ def parse_args(argv: list[str] | None = None):
                    help="Output directory with symlinks to blobs")
 
     g = p.add_argument_group("aria2c performance tuning")
-    g.add_argument("-x", type=int, default=16, metavar="N",
-                   help="Max connections per server (default: 16)")
-    g.add_argument("-s", type=int, default=16, metavar="N",
-                   help="Split count per file (default: 16)")
-    g.add_argument("-j", type=int, default=8, metavar="N",
-                   help="Parallel downloads (default: 8)")
+    g.add_argument("-x", type=int, default=4, metavar="N",
+                   help="Max connections per server (default: 4)")
+    g.add_argument("-s", type=int, default=4, metavar="N",
+                   help="Split count per file (default: 4)")
+    g.add_argument("-j", type=int, default=4, metavar="N",
+                   help="Parallel downloads (default: 4)")
 
     g = p.add_argument_group("execution control")
     g.add_argument("--dry-run", action="store_true",
                    help="Show what would be downloaded without downloading")
     g.add_argument("--urls-only", action="store_true",
                    help="With --dry-run, print only URLs (pipe-friendly)")
-    g.add_argument("-y", "--yes", action="store_true",
-                   help="Skip confirmation prompt")
 
     g = p.add_argument_group("utilities")
     g.add_argument("--install-alias", nargs="?", const="_auto_", default=None,
                    metavar="{zsh,bash,fish}",
                    help="Install 'hfa' alias in rc file (auto-detect shell if omitted)")
     g.add_argument("--update", action="store_true",
-                   help="Update hf-aria to latest version from GitHub")
+                   help="Update hf-aria2 to latest version from GitHub")
 
     args = p.parse_args(argv)
 
@@ -88,9 +86,9 @@ def _install_alias(shell: str):
             shell = "fish"
 
     rc_files = {
-        "zsh": (".zshrc", 'alias hfa="hf-aria"'),
-        "bash": (".bashrc", 'alias hfa="hf-aria"'),
-        "fish": (".config/fish/config.fish", 'alias hfa "hf-aria"'),
+        "zsh": (".zshrc", 'alias hfa="hf-aria2"'),
+        "bash": (".bashrc", 'alias hfa="hf-aria2"'),
+        "fish": (".config/fish/config.fish", 'alias hfa "hf-aria2"'),
     }
     entry = rc_files.get(shell)
     if not entry:
@@ -103,7 +101,7 @@ def _install_alias(shell: str):
         print(f"error: {rc} not found", file=sys.stderr)
         sys.exit(1)
 
-    lines = ["\n# hf-aria", alias_line]
+    lines = ["\n# hf-aria2", alias_line]
 
     existing = rc.read_text() if rc.stat().st_size > 0 else ""
     if alias_line in existing:
@@ -120,7 +118,7 @@ def _install_alias(shell: str):
 def _self_update():
     import subprocess
 
-    GIT_URL = "git+https://github.com/joaoeudes7/hf-aria.git"
+    GIT_URL = "git+https://github.com/joaoeudes7/hf-aria2.git"
 
     cmds = [
         ([sys.executable, "-m", "pip", "install", "--upgrade", GIT_URL], "pip (GitHub)"),
@@ -134,10 +132,10 @@ def _self_update():
         ret = result.returncode
         out = (result.stdout + result.stderr).lower()
         if ret == 0:
-            print(f"✓ hf-aria updated via {label}")
+            print(f"✓ hf-aria2 updated via {label}")
             return
         if "already satisfied" in out:
-            print("✓ hf-aria already up-to-date")
+            print("✓ hf-aria2 already up-to-date")
             return
 
     print("error: could not update. Try manually:", file=sys.stderr)

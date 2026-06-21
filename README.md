@@ -1,93 +1,73 @@
-# hf-aria
+# Hf-Aria2
 
-Fast HuggingFace downloader using aria2c — cache-compatible with `huggingface_hub`.
-
-Downloads models, datasets, and spaces from HuggingFace Hub using `aria2c` for maximum parallelism, writing directly to the HF cache layout (`blobs/` + symlinks) so `transformers` and other HF libraries can use them immediately.
+Fast HuggingFace downloader using `aria2c` — saves directly to the HF cache (`blobs/` + symlinks), ready for `transformers` and friends.
 
 ## Install
 
-### 1. Install aria2
-
 ```bash
-# macOS
-brew install aria2
-
-# Linux
-sudo apt install aria2      # Debian/Ubuntu
-sudo dnf install aria2      # Fedora
+# 1. Install aria2
+# Linux/macOS
+sudo apt install aria2                   # Debian/Ubuntu
+brew install aria2                       # macOS
+dnf install aria2                        # Fedora
 
 # Windows
-winget install aria2        # or choco install aria2
+winget install aria2
+choco install aria2
+
+# Or install via pip (Linux/Windows only, no macOS wheel)
+pip install hf-aria2[aria2]
+
+# 2. Install hf-aria2
+pip install https://github.com/joaoeudes7/hf-aria2/releases/latest/download/##GET_VERSION##.whl
+
+# or latest commit
+pip install git+https://github.com/joaoeudes7/hf-aria2.git
 ```
-
-### 2. Install hf-aria
-
-```bash
-# From GitHub Releases (recommended)
-pip install https://github.com/joaoeudes7/hf-aria/releases/latest/download/hf_aria-0.1.0-py3-none-any.whl
-
-# Or latest commit
-pip install git+https://github.com/joaoeudes7/hf-aria.git
-```
-
-> All releases: https://github.com/joaoeudes7/hf-aria/releases
 
 ## Usage
 
 ```bash
-# Download model to HF cache (compatible with transformers)
-hf-aria Qwen/Qwen2.5-1.5B-Instruct
+# Download a model
+hf-aria2 <id_model>
 
-# Download only safetensors files
-hf-aria Qwen/Qwen2.5-1.5B-Instruct --include "*.safetensors"
+# Filter by pattern
+hf-aria2 <id_model> --include "*.safetensors" --exclude "*optimizer*"
 
-# Exclude optimizer checkpoint files
-hf-aria Qwen/Qwen2.5-1.5B-Instruct --exclude "*optimizer*"
+# Download a dataset
+hf-aria2 --repo-type dataset <id_dataset>
 
-# Download dataset
-hf-aria --repo-type dataset HuggingFaceH4/ultrachat_200k
+# Tweak parallelism (aggressive)
+hf-aria2 <id_model> -x 16 -s 16 -j 8
 
-# Custom parallelism
-hf-aria Qwen/Qwen2.5-1.5B-Instruct -x 8 -s 8 -j 4
+# Dry-run (see what would be downloaded)
+hf-aria2 <id_model> --dry-run
+hf-aria2 <id_model> --dry-run --urls-only   # pipe-friendly
 
-# Symlinks to a local directory
-hf-aria Qwen/Qwen2.5-1.5B-Instruct -o ./my-model
+# Symlinks to a local folder
+hf-aria2 <id_model> -o ./my-model
 
-# Dry-run (show what would be downloaded)
-hf-aria Qwen/Qwen2.5-1.5B-Instruct --dry-run
-
-# URLs only (pipe-friendly)
-hf-aria Qwen/Qwen2.5-1.5B-Instruct --dry-run --urls-only
-
-# Gated model with token
-hf-aria meta-llama/Llama-3.1-70B --token "$HF_TOKEN"
-
-# Install shell alias (auto-detects from $SHELL)
-hf-aria --install-alias
-hf-aria --install-alias bash
-hf-aria --install-alias zsh
-hf-aria --install-alias fish
+# Install shell alias (auto-detect: zsh/bash/fish)
+hf-aria2 --install-alias
 
 # Self-update
-hf-aria --update
+hf-aria2 --update
 ```
 
 ## How it works
 
-1. Queries the HuggingFace Hub API to list repository files
-2. Downloads files using `aria2c` with multi-connection parallelism
-3. Commits to `~/.cache/huggingface/hub/` — full HF cache layout (`blobs/` + symlinks in `snapshots/<sha>/`)
-4. Supports resuming partial downloads via aria2c `--continue=true`
+1. Lists repo files via HuggingFace Hub API
+2. Downloads in parallel with `aria2c`
+3. Writes to `~/.cache/huggingface/hub/` (official format: blobs + symlinks)
+4. Partial downloads resume automatically (`--continue=true`)
 
-## Development
+## Dev
 
 ```bash
-git clone https://github.com/joaoeudes7/hf-aria.git
-cd hf-aria
+git clone https://github.com/joaoeudes7/hf-aria2.git
+cd hf-aria2
 uv sync
-uv run hf-aria --help
+uv run hf-aria2 --help
 ```
-
-## License
 
 MIT
