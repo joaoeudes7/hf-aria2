@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "hf-aria2"
-version = "0.2.5"
+version = "1.0.0"
 description = "Fast HuggingFace downloader using aria2c — cache-compatible with huggingface_hub"
 readme = "README.md"
 license = "MIT"
